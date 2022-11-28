@@ -20,75 +20,79 @@ public class OurAllocatorImpl implements Allocator {
 
     @Override
     public Long allocate(int size) {
-        synchronized (this) {
+
             long smallestSize = 8L;
             while (smallestSize < size) smallestSize *= 2;
+        synchronized (arenas) {
             if (!arenas.containsKey(smallestSize)) {
                 arenas.put(smallestSize, new Arena(smallestSize, BackingStore.getInstance().mmap(8388608)));
             }
+
             int index = arenas.get(smallestSize).allocedChunks.nextClearBit(0);
             arenas.get(smallestSize).allocedChunks.flip(index);
             int block = index / (8388608 / size);
 
-            if(arenas.get(smallestSize).startAddress.size() <= block) {
+            if (arenas.get(smallestSize).startAddress.size() <= block) {
                 arenas.get(smallestSize).startAddress.add(block, BackingStore.getInstance().mmap(8388608));
             }
             Long address = (index * smallestSize) + arenas.get(smallestSize).startAddress.get(block);
 
             arenas.get(smallestSize).amount++;
-            if(alloccedBlocks.containsKey(address)) System.out.println("Block already exists " + index + ", " + smallestSize);
-            alloccedBlocks.put(address, smallestSize);
-            return address;
+            synchronized (alloccedBlocks) {
+                if(alloccedBlocks.containsKey(address))
+                    System.out.println("Block already exists " + index + ", " + smallestSize);
+                alloccedBlocks.put(address, smallestSize);
+                return address;
+            }
         }
     }
 
     @Override
     public void free(Long address) {
-        synchronized (this) {
-            long size = alloccedBlocks.remove(address);
-            int block = 0;
-            for(long startAddress : arenas.get(size).startAddress) {
-                if(address >= startAddress && address <= (startAddress + 8388608)) {
-                    block = arenas.get(size).startAddress.indexOf(startAddress);
-                    break;
-                }
+        long size;
+        int block = 0;
+        synchronized(alloccedBlocks) {
+            size = alloccedBlocks.remove(address);
+        }
+        for(long startAddress : arenas.get(size).startAddress) {
+            if(address >= startAddress && address <= (startAddress + 8388608)) {
+                block = arenas.get(size).startAddress.indexOf(startAddress);
+                break;
             }
+        }
 
-            int index = (int) ((address - arenas.get(size).startAddress.get(block)) / size);
+        int index = (int) ((address - arenas.get(size).startAddress.get(block)) / size);
 //            if (!arenas.get(size).allocedChunks.get(index))
 //                throw new AllocatorException("Fout bij free, chunk was niet gealloceerd");
-
+        synchronized (arenas) {
             arenas.get(size).allocedChunks.set(index, false);
             arenas.get(size).amount--;
 
             // Indien er geen elementen meer in de arena zijn dealloceren we hem
             if (arenas.get(size).amount == 0) {
-                for(long startAddress : arenas.get(size).startAddress)
+                for (long startAddress : arenas.get(size).startAddress)
                     BackingStore.getInstance().munmap(startAddress, 8388608);
                 arenas.remove(size);
             }
         }
+
     }
 
     @Override
     public Long reAllocate(Long oldAddress, int newSize) {
-        synchronized (this) {
-            free(oldAddress);
-            return allocate(newSize);
-        }
+        free(oldAddress);
+        return allocate(newSize);
     }
 
     @Override
     public boolean isAccessible(Long address) {
-        synchronized (this) {
-            return isAccessible(address, 1);
-        }
+        return isAccessible(address, 1);
     }
 
     @Override
     public boolean isAccessible(Long address, int size) {
         Map.Entry<Long,Long> entry = null;
-        synchronized (this) { entry = alloccedBlocks.floorEntry(address); }
+        synchronized (alloccedBlocks) { entry = alloccedBlocks.floorEntry(address); }
         if (entry == null)
             return false;
         assert address >= entry.getKey();
