@@ -2,8 +2,6 @@ package Allocator;
 
 import java.util.HashMap;
 import java.util.Map;
-import java.util.NavigableMap;
-import java.util.TreeMap;
 
 public class multiThreadedAllocator implements Allocator{
     private static final Map<Long, OurAllocatorImpl> allocators = new HashMap<>();
