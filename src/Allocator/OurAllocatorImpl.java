@@ -15,35 +15,49 @@ class Arena {
 
 
 public class OurAllocatorImpl implements Allocator {
-    private Map<Long, Arena> arenas = new HashMap<>();
-    private NavigableMap<Long, Long> alloccedBlocks = new TreeMap<>();
+    private static final int ARENA_SIZE = 8388608;
+    private final Map<Long, Arena> arenas = new HashMap<>();
+    private final NavigableMap<Long, Long> alloccedBlocks = new TreeMap<>();
+
+//    public OurAllocatorImpl (){
+//        long[] sizes = {8, 16, 32, 64, 128, 256, 512, 1024, 2048, 4096, 8192};
+//        for(long s : sizes) {
+//            arenas.put(s, new Arena(s, BackingStore.getInstance().mmap(8388608)));
+//        }
+//    }
 
     @Override
     public Long allocate(int size) {
 
-            long smallestSize = 8L;
-            while (smallestSize < size) smallestSize *= 2;
+        long smallestSize = 8L;
+        while (smallestSize < size) smallestSize *= 2;
+        Long address;
+        int index;
+        Arena arena;
         synchronized (arenas) {
             if (!arenas.containsKey(smallestSize)) {
-                arenas.put(smallestSize, new Arena(smallestSize, BackingStore.getInstance().mmap(8388608)));
+                arenas.put(smallestSize, new Arena(smallestSize, BackingStore.getInstance().mmap(ARENA_SIZE)));
             }
+            arena = arenas.get(smallestSize);
+        }
+        synchronized (arenas.get(smallestSize)) {
+            index = arena.allocedChunks.nextClearBit(0);
+            arena.allocedChunks.set(index, true);
+            if(!arena.allocedChunks.get(index)) System.out.println("ERROR SETTING BIT FOR");
+            int block = index / (ARENA_SIZE / size);
 
-            int index = arenas.get(smallestSize).allocedChunks.nextClearBit(0);
-            arenas.get(smallestSize).allocedChunks.flip(index);
-            int block = index / (8388608 / size);
-
-            if (arenas.get(smallestSize).startAddress.size() <= block) {
-                arenas.get(smallestSize).startAddress.add(block, BackingStore.getInstance().mmap(8388608));
+            if (arena.startAddress.size() <= block) {
+                arena.startAddress.add(block, BackingStore.getInstance().mmap(ARENA_SIZE));
             }
-            Long address = (index * smallestSize) + arenas.get(smallestSize).startAddress.get(block);
+            address = (index * smallestSize) + arena.startAddress.get(block);
 
-            arenas.get(smallestSize).amount++;
-            synchronized (alloccedBlocks) {
-                if(alloccedBlocks.containsKey(address))
-                    System.out.println("Block already exists " + index + ", " + smallestSize);
-                alloccedBlocks.put(address, smallestSize);
-                return address;
-            }
+            arena.amount++;
+        }
+        synchronized (alloccedBlocks) {
+            if(alloccedBlocks.containsKey(address))
+                System.out.println("Block already exists " + index + ", " + smallestSize);
+            alloccedBlocks.put(address, smallestSize);
+            return address;
         }
     }
 
@@ -54,27 +68,37 @@ public class OurAllocatorImpl implements Allocator {
         synchronized(alloccedBlocks) {
             size = alloccedBlocks.remove(address);
         }
-        for(long startAddress : arenas.get(size).startAddress) {
-            if(address >= startAddress && address <= (startAddress + 8388608)) {
-                block = arenas.get(size).startAddress.indexOf(startAddress);
-                break;
-            }
+        Arena arena;
+        synchronized (arenas) {
+            arena = arenas.get(size);
         }
 
-        int index = (int) ((address - arenas.get(size).startAddress.get(block)) / size);
+        synchronized (arenas.get(size)) {
+            for (long startAddress : arena.startAddress) {
+                if (address >= startAddress && address <= (startAddress + ARENA_SIZE)) {
+                    block = arena.startAddress.indexOf(startAddress);
+                    break;
+                }
+            }
+
+
 //            if (!arenas.get(size).allocedChunks.get(index))
 //                throw new AllocatorException("Fout bij free, chunk was niet gealloceerd");
-        synchronized (arenas) {
-            arenas.get(size).allocedChunks.set(index, false);
-            arenas.get(size).amount--;
+
+            int index = (int) ((address - arena.startAddress.get(block)) / size);
+            arena.allocedChunks.set(index, false);
+            arena.amount--;
 
             // Indien er geen elementen meer in de arena zijn dealloceren we hem
-            if (arenas.get(size).amount == 0) {
-                for (long startAddress : arenas.get(size).startAddress)
-                    BackingStore.getInstance().munmap(startAddress, 8388608);
-                arenas.remove(size);
-            }
         }
+//        synchronized (arenas) {
+//            if (arenas.get(size).amount == 0) {
+//                for (long startAddress : arenas.get(size).startAddress)
+//                    BackingStore.getInstance().munmap(startAddress, ARENA_SIZE);
+//                arenas.remove(size);
+//            }
+//        }
+
 
     }
 

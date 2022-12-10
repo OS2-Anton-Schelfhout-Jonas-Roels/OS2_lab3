@@ -14,7 +14,7 @@ public class Logger extends Thread {
         var oldTime = System.currentTimeMillis();
         while (true) {
             try {
-                Thread.sleep(1000);
+                Thread.sleep(10000);
             } catch (InterruptedException e) {
                 e.printStackTrace();
             }

@@ -44,7 +44,9 @@ public class BackingStore {
      * In reality, the size is aligned up to the next multiple of 4096 (page size).
      */
     public synchronized Long mmap(long size) {
-        Thread.yield();
+//        try {
+//            Thread.sleep(1);
+//        } catch(InterruptedException)
         assert_true(size > 0);
         final var numPages = numPages(size);
         assert_true(numPages > 0);
@@ -63,6 +65,7 @@ public class BackingStore {
                 return ret;
             }
             searchStart = until;
+
         }
     }
 
