@@ -21,9 +21,9 @@ public class multiThreadedAllocator implements Allocator{
 
         // gebruik de allocator van de huidige thread om het blok te alloceren
         long address;
-        synchronized (allocators.get(id)) {
+//        synchronized (allocators.get(id)) {
             address = alloc.allocate(size);
-        }
+//        }
 
         // sla het id van de thread dat dit blok heeft gealloceerd op in de map
         synchronized (alloccedBlocks) {
@@ -42,9 +42,9 @@ public class multiThreadedAllocator implements Allocator{
         }
 //        if(id != Thread.currentThread().getId()) System.out.println("Trying to free other threads memory");
         OurAllocatorImpl alloc;
-        synchronized (allocators) {
+//        synchronized (allocators) {
             alloc = allocators.get(id);
-        }
+//        }
         if(id == null) throw new AllocatorException("No block found at that address (free)");
         // gebruik de allocator met dat id om het blok te freeen
         synchronized (allocators.get(id)) {
@@ -67,9 +67,9 @@ public class multiThreadedAllocator implements Allocator{
             alloc = allocators.get(id);
         }
         long address;
-        synchronized (allocators.get(id)) {
+//        synchronized (allocators.get(id)) {
             address = alloc.reAllocate(oldAddress, newSize);
-        }
+//        }
         synchronized (alloccedBlocks) {
             alloccedBlocks.put(address, id);
         }
@@ -80,9 +80,9 @@ public class multiThreadedAllocator implements Allocator{
     public boolean isAccessible(Long address) {
         var id = alloccedBlocks.get(address);
         OurAllocatorImpl alloc;
-        synchronized (allocators) {
+//        synchronized (allocators) {
             alloc = allocators.get(id);
-        }
+//        }
         synchronized (allocators.get(id)) {
             return alloc.isAccessible(address);
         }
@@ -93,9 +93,9 @@ public class multiThreadedAllocator implements Allocator{
         var id = alloccedBlocks.get(address);
         if(id == null) return false;
         OurAllocatorImpl alloc;
-        synchronized (allocators) {
+//        synchronized (allocators) {
             alloc = allocators.get(id);
-        }
+//        }
         synchronized (allocators.get(id)) {
             return alloc.isAccessible(address, size);
         }

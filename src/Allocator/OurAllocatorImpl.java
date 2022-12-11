@@ -22,33 +22,29 @@ public class OurAllocatorImpl implements Allocator {
     @Override
     public Long allocate(int size) {
 
-        long smallestSize = 8L;
-        while (smallestSize < size) smallestSize *= 2;
+        long smallestSize = 64 - Long.numberOfLeadingZeros(size - 1);
         Long address;
         int index;
         Arena arena;
         synchronized (arenas) {
             if (!arenas.containsKey(smallestSize)) {
-                arenas.put(smallestSize, new Arena(smallestSize, BackingStore.getInstance().mmap(ARENA_SIZE)));
+                arenas.put(smallestSize, new Arena(smallestSize, BackingStore.getInstance().mmap(8388608)));
             }
             arena = arenas.get(smallestSize);
         }
         synchronized (arenas.get(smallestSize)) {
             index = arena.allocedChunks.nextClearBit(0);
             arena.allocedChunks.set(index, true);
-            if(!arena.allocedChunks.get(index)) System.out.println("ERROR SETTING BIT FOR");
-            int block = index / (ARENA_SIZE / size);
+            int block = index / (8388608 / size);
 
             if (arena.startAddress.size() <= block) {
-                arena.startAddress.add(block, BackingStore.getInstance().mmap(ARENA_SIZE));
+                arena.startAddress.add(block, BackingStore.getInstance().mmap(8388608));
             }
             address = (index * smallestSize) + arena.startAddress.get(block);
 
             arena.amount++;
         }
         synchronized (alloccedBlocks) {
-            if(alloccedBlocks.containsKey(address))
-                System.out.println("Block already exists " + index + ", " + smallestSize);
             alloccedBlocks.put(address, smallestSize);
             return address;
         }
